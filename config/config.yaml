@@ -1,0 +1,10 @@
+http:
+  addr: ":1010"
+
+database:
+  host: "localhost"
+  port: 5432
+  username: "postgres"
+  password: "130263"
+  database_name: "datapoint"
+  driver: "PostgreSQL"

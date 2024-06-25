@@ -1,0 +1,133 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/sources": {
+            "get": {
+                "tags": [
+                    "источники"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.Source"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "description": "источник",
+                        "name": "source",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.Source"
+                        }
+                    }
+                ],
+                "responses": {}
+            },
+            "patch": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "description": "источник",
+                        "name": "source",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.Source"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/sources/{id}": {
+            "get": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор источника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Source"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор источника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        }
+    },
+    "definitions": {
+        "entity.Source": {
+            "type": "object",
+            "properties": {
+                "connected": {
+                    "type": "boolean"
+                },
+                "databaseName": {
+                    "type": "string"
+                },
+                "driver": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
