@@ -67,6 +67,24 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/sources/drivers": {
+            "get": {
+                "tags": [
+                    "источники"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/sources/{id}": {
             "get": {
                 "tags": [

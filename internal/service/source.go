@@ -114,6 +114,10 @@ func (s *SourceService) Create(ctx context.Context, source entity.Source) (strin
 	return source.Id, nil
 }
 
+func (s *SourceService) GetDrivers() []string {
+	return []string{database.PostgreSQL}
+}
+
 func (s *SourceService) GetDatabase(id string) (*database.Database, error) {
 	source, ok := s.sources[id]
 	if !ok {

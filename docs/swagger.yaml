@@ -81,4 +81,15 @@ paths:
             $ref: '#/definitions/entity.Source'
       tags:
       - источники
+  /sources/drivers:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      tags:
+      - источники
 swagger: "2.0"
