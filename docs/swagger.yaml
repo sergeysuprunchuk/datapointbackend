@@ -1,4 +1,20 @@
 definitions:
+  database.Column:
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  database.Table:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/database.Column'
+        type: array
+      name:
+        type: string
+    type: object
   entity.Source:
     properties:
       connected:
@@ -79,6 +95,23 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/entity.Source'
+      tags:
+      - источники
+  /sources/{id}/tables:
+    get:
+      parameters:
+      - description: идентификатор источника
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/database.Table'
+            type: array
       tags:
       - источники
   /sources/drivers:

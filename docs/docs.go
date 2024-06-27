@@ -123,9 +123,61 @@ const docTemplate = `{
                 ],
                 "responses": {}
             }
+        },
+        "/sources/{id}/tables": {
+            "get": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор источника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/database.Table"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "database.Column": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "database.Table": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.Column"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "entity.Source": {
             "type": "object",
             "properties": {

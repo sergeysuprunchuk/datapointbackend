@@ -118,6 +118,20 @@ func (s *SourceService) GetDrivers() []string {
 	return []string{database.PostgreSQL}
 }
 
+func (s *SourceService) GetTables(ctx context.Context, id string) ([]*database.Table, error) {
+	db, err := s.GetDatabase(id)
+	if err != nil {
+		return nil, err
+	}
+
+	var tables []*database.Table
+	if tables, err = db.GetTables(ctx); err != nil {
+		return nil, fmt.Errorf("произошла ошибка при получении таблиц %s", err.Error())
+	}
+
+	return tables, nil
+}
+
 func (s *SourceService) GetDatabase(id string) (*database.Database, error) {
 	source, ok := s.sources[id]
 	if !ok {

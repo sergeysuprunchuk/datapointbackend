@@ -16,6 +16,7 @@ func newSourceHandler(app *fiber.App, ss *service.SourceService) {
 	g.Get("/", h.getAll)
 	g.Get("/drivers", h.getDrivers)
 	g.Get("/:id", h.getOne)
+	g.Get("/:id/tables", h.getTables)
 	g.Post("/", h.create)
 	g.Patch("/", h.edit)
 	g.Delete("/:id", h.delete)
@@ -97,4 +98,17 @@ func (h *sourceHandler) create(ctx *fiber.Ctx) error {
 // @router		/sources/drivers [get]
 func (h *sourceHandler) getDrivers(ctx *fiber.Ctx) error {
 	return ctx.JSON(h.ss.GetDrivers())
+}
+
+// @tags		источники
+// @param		id	path	string	true	"идентификатор источника"
+// @success	200	{array}	database.Table
+// @router		/sources/{id}/tables [get]
+func (h *sourceHandler) getTables(ctx *fiber.Ctx) error {
+	tables, err := h.ss.GetTables(ctx.Context(), ctx.Params("id"))
+	if err != nil {
+		return err
+	}
+
+	return ctx.JSON(tables)
 }

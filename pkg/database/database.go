@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
@@ -67,4 +68,105 @@ func New(cfg Config) (*Database, error) {
 			RunWith(conn),
 		Config: cfg,
 	}, nil
+}
+
+const (
+	NumberJSON  = "number"
+	StringJSON  = "string"
+	BooleanJSON = "boolean"
+	Unsupported = "unsupported"
+)
+
+type SQLType string
+
+func (t SQLType) ToJSON() string {
+	switch t {
+	case Smallint, Integer, Bigint, Decimal, Numeric, Real, Double, Smallserial, Serial, Bigserial:
+		return NumberJSON
+
+	case Boolean:
+		return BooleanJSON
+
+	case CharacterVarying, Character, Text, Timestamp, Timestamptz, Time, Timetz, Interval:
+		return StringJSON
+
+	default:
+		return Unsupported
+	}
+}
+
+const (
+	Smallint    SQLType = "smallint"
+	Integer     SQLType = "integer"
+	Bigint      SQLType = "bigint"
+	Decimal     SQLType = "decimal"
+	Numeric     SQLType = "numeric"
+	Real        SQLType = "real"
+	Double      SQLType = "double precision"
+	Smallserial SQLType = "smallserial"
+	Serial      SQLType = "serial"
+	Bigserial   SQLType = "bigserial"
+
+	CharacterVarying SQLType = "character varying"
+	Character        SQLType = "character"
+	Text             SQLType = "text"
+
+	Boolean SQLType = "boolean"
+
+	Timestamp   SQLType = "timestamp without time zone"
+	Timestamptz SQLType = "timestamp with time zone"
+	Time        SQLType = "time without time zone"
+	Timetz      SQLType = "time with time zone"
+	Interval    SQLType = "interval"
+)
+
+type Column struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type Table struct {
+	Name    string   `json:"name"`
+	Columns []Column `json:"columns"`
+}
+
+func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
+	rows, err := db.Builder.
+		Select("table_name", "column_name", "data_type").
+		From("information_schema.columns").
+		Where("table_schema = ?", "public").
+		QueryContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var (
+		tables   = make([]*Table, 0)
+		tableAcc = make(map[string]*Table)
+	)
+	for rows.Next() {
+		var (
+			tName string
+			cName string
+			cType SQLType
+		)
+		if err = rows.Scan(&tName, &cName, &cType); err != nil {
+			return nil, err
+		}
+
+		_, ok := tableAcc[tName]
+		if !ok {
+			newT := &Table{Name: tName}
+			tables = append(tables, newT)
+			tableAcc[tName] = newT
+		}
+
+		tableAcc[tName].Columns = append(tableAcc[tName].Columns, Column{
+			Name: cName,
+			Type: cType.ToJSON(),
+		})
+	}
+
+	return tables, nil
 }
