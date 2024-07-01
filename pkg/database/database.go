@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
+	"strings"
 )
 
 const (
@@ -169,4 +170,185 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	}
 
 	return tables, nil
+}
+
+type Query struct {
+	Table QTable `json:"table"`
+}
+
+type QTable struct {
+	Name      string    `json:"name"`
+	Increment uint8     `json:"increment"`
+	Columns   []QColumn `json:"columns"`
+	Next      []QTable  `json:"next"`
+	Rule      Rule      `json:"rule"`
+}
+
+func (t *QTable) Join(b sq.SelectBuilder) sq.SelectBuilder {
+	for _, nextT := range t.Next {
+		b = b.Columns(nextT.SqlColumns()...)
+		b = nextT.Rule.Join(b, *t, nextT)
+		b = nextT.Join(b)
+	}
+	return b
+}
+
+func (t *QTable) SqlAlias() string {
+	if t.Increment == 0 {
+		return t.Name
+	}
+	return fmt.Sprintf("%s_%d", t.Name, t.Increment)
+}
+
+func (t *QTable) SqlColumns() []string {
+	columns := make([]string, 0)
+	for _, c := range t.Columns {
+		if len(c.Fun) != 0 {
+			columns = append(columns, fmt.Sprintf(`%s("%s"."%s") "%s %s.%s"`,
+				c.Fun, t.SqlAlias(), c.Name, c.Fun, t.SqlAlias(), c.Name))
+			continue
+		}
+		columns = append(columns, fmt.Sprintf(`"%s"."%s" "%s.%s"`,
+			t.SqlAlias(), c.Name, t.SqlAlias(), c.Name))
+	}
+	return columns
+}
+
+type QColumn struct {
+	Name     string `json:"name"`
+	Fun      string `json:"fun"`
+	Key      string `json:"key"`
+	KeyOrder uint8  `json:"keyOrder"`
+}
+
+const (
+	Join  = "join"
+	Left  = "left"
+	Right = "right"
+)
+
+type Rule struct {
+	Type       string      `json:"type"`
+	Conditions []Condition `json:"conditions"`
+}
+
+func (r *Rule) Join(b sq.SelectBuilder, left, right QTable) sq.SelectBuilder {
+	sl := []string{fmt.Sprintf(`"%s" "%s" ON`, right.Name, right.SqlAlias())}
+
+	for i, cond := range r.Conditions {
+		if i != 0 {
+			sl = append(sl, "AND")
+		}
+		sl = append(sl, fmt.Sprintf(`"%s"."%s" %s "%s"."%s"`,
+			left.SqlAlias(), cond.Left, cond.Op, right.SqlAlias(), cond.Right,
+		))
+	}
+
+	join := strings.Join(sl, " ")
+
+	switch r.Type {
+	case Join:
+		b = b.Join(join)
+	case Left:
+		b = b.LeftJoin(join)
+	case Right:
+		b = b.RightJoin(join)
+	}
+
+	return b
+}
+
+type Condition struct {
+	Left  string `json:"left"`
+	Right string `json:"right"`
+	Op    string `json:"operator"`
+}
+
+func (db *Database) Parse(query Query) (sq.SelectBuilder, map[string][]string) {
+	b := db.Builder.
+		Select(query.Table.SqlColumns()...).
+		From(fmt.Sprintf(`"%s" "%s"`, query.Table.Name, query.Table.SqlAlias()))
+
+	b = query.Table.Join(b)
+
+	var (
+		groupBy []string
+		hasFun  bool
+		rules   = make(map[string][]string)
+	)
+
+	tables := []QTable{query.Table}
+
+	for i := 0; i < len(tables); i++ {
+		t := tables[i]
+		for _, c := range t.Columns {
+			if len(c.Fun) != 0 {
+				rules[c.Key] = append(rules[c.Key], fmt.Sprintf("%s %s.%s",
+					c.Fun, t.SqlAlias(), c.Name))
+				hasFun = true
+				continue
+			}
+
+			groupBy = append(groupBy, fmt.Sprintf(`"%s.%s"`, t.SqlAlias(), c.Name))
+
+			rules[c.Key] = append(rules[c.Key], fmt.Sprintf("%s.%s",
+				t.SqlAlias(), c.Name))
+		}
+
+		if len(t.Next) != 0 {
+			tables = append(tables, t.Next...)
+		}
+	}
+
+	if hasFun {
+		b = b.GroupBy(groupBy...)
+	}
+
+	return b, rules
+}
+
+type QueryResponse struct {
+	Rules  map[string][]string `json:"rules"`
+	Data   []map[string]any    `json:"data"`
+	RawSql string              `json:"rawSql"`
+}
+
+func (db *Database) Execute(ctx context.Context, query Query) (QueryResponse, error) {
+	b, rules := db.Parse(query)
+
+	rows, err := b.QueryContext(ctx)
+	if err != nil {
+		return QueryResponse{}, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var columns []string
+
+	if columns, err = rows.Columns(); err != nil {
+		return QueryResponse{}, err
+	}
+
+	response := QueryResponse{Rules: rules}
+
+	for rows.Next() {
+		var (
+			dest = make([]any, 0)
+			item = make(map[string]any)
+		)
+
+		for _, c := range columns {
+			item[c] = new(any)
+			dest = append(dest, item[c])
+		}
+
+		if err = rows.Scan(dest...); err != nil {
+			return QueryResponse{}, err
+		}
+
+		response.Data = append(response.Data, item)
+	}
+
+	response.RawSql, _, _ = b.ToSql()
+
+	return response, nil
 }

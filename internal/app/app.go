@@ -34,9 +34,10 @@ func Run(cfg *config.Config) error {
 
 	var (
 		ss = service.NewSourceService(sr)
+		qs = service.NewQueryService(ss)
 	)
 
-	handler.NewRouter(app, ss)
+	handler.NewRouter(app, ss, qs)
 
 	return app.Listen(cfg.Http.Addr)
 }

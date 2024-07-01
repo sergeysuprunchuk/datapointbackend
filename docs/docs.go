@@ -15,6 +15,25 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/queries/execute": {
+            "post": {
+                "tags": [
+                    "запросы"
+                ],
+                "parameters": [
+                    {
+                        "description": "запрос",
+                        "name": "query",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.Query"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/sources": {
             "get": {
                 "tags": [
@@ -164,6 +183,77 @@ const docTemplate = `{
                 }
             }
         },
+        "database.Condition": {
+            "type": "object",
+            "properties": {
+                "left": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "right": {
+                    "type": "string"
+                }
+            }
+        },
+        "database.QColumn": {
+            "type": "object",
+            "properties": {
+                "fun": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "keyOrder": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "database.QTable": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QColumn"
+                    }
+                },
+                "increment": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QTable"
+                    }
+                },
+                "rule": {
+                    "$ref": "#/definitions/database.Rule"
+                }
+            }
+        },
+        "database.Rule": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.Condition"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "database.Table": {
             "type": "object",
             "properties": {
@@ -175,6 +265,17 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "entity.Query": {
+            "type": "object",
+            "properties": {
+                "sourceId": {
+                    "type": "string"
+                },
+                "table": {
+                    "$ref": "#/definitions/database.QTable"
                 }
             }
         },

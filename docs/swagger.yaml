@@ -6,6 +6,52 @@ definitions:
       type:
         type: string
     type: object
+  database.Condition:
+    properties:
+      left:
+        type: string
+      operator:
+        type: string
+      right:
+        type: string
+    type: object
+  database.QColumn:
+    properties:
+      fun:
+        type: string
+      key:
+        type: string
+      keyOrder:
+        type: integer
+      name:
+        type: string
+    type: object
+  database.QTable:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/database.QColumn'
+        type: array
+      increment:
+        type: integer
+      name:
+        type: string
+      next:
+        items:
+          $ref: '#/definitions/database.QTable'
+        type: array
+      rule:
+        $ref: '#/definitions/database.Rule'
+    type: object
+  database.Rule:
+    properties:
+      conditions:
+        items:
+          $ref: '#/definitions/database.Condition'
+        type: array
+      type:
+        type: string
+    type: object
   database.Table:
     properties:
       columns:
@@ -14,6 +60,13 @@ definitions:
         type: array
       name:
         type: string
+    type: object
+  entity.Query:
+    properties:
+      sourceId:
+        type: string
+      table:
+        $ref: '#/definitions/database.QTable'
     type: object
   entity.Source:
     properties:
@@ -39,6 +92,18 @@ definitions:
 info:
   contact: {}
 paths:
+  /queries/execute:
+    post:
+      parameters:
+      - description: запрос
+        in: body
+        name: query
+        required: true
+        schema:
+          $ref: '#/definitions/entity.Query'
+      responses: {}
+      tags:
+      - запросы
   /sources:
     get:
       responses:
