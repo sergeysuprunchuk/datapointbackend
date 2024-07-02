@@ -162,6 +162,23 @@ paths:
             $ref: '#/definitions/entity.Source'
       tags:
       - источники
+  /sources/{id}/functions:
+    get:
+      parameters:
+      - description: идентификатор источника
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      tags:
+      - источники
   /sources/{id}/tables:
     get:
       parameters:

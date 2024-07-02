@@ -143,6 +143,33 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/sources/{id}/functions": {
+            "get": {
+                "tags": [
+                    "источники"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор источника",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/sources/{id}/tables": {
             "get": {
                 "tags": [

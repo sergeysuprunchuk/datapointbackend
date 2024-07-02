@@ -72,6 +72,23 @@ func New(cfg Config) (*Database, error) {
 }
 
 const (
+	AvgSql   = "avg"
+	CountSql = "count"
+	SumSql   = "sum"
+	MaxSql   = "max"
+	MinSql   = "min"
+)
+
+func (db *Database) GetFunctions() ([]string, error) {
+	switch db.Config.Driver {
+	case PostgreSQL:
+		return []string{AvgSql, CountSql, SumSql, MaxSql, MinSql}, nil
+	default:
+		return nil, fmt.Errorf("неизвестный драйвер %s", db.Config.Driver)
+	}
+}
+
+const (
 	NumberJSON  = "number"
 	StringJSON  = "string"
 	BooleanJSON = "boolean"
