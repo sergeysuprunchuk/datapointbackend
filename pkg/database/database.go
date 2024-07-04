@@ -190,52 +190,42 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 }
 
 type Query struct {
-	Table QTable `json:"table"`
+	Table   QTable    `json:"table"`
+	Columns []QColumn `json:"columns"`
+}
+
+type QTableKey struct {
+	Name      string `json:"name"`
+	Increment uint8  `json:"increment"`
+}
+
+func (k *QTableKey) String() string {
+	if k.Increment == 0 {
+		return k.Name
+	}
+	return fmt.Sprintf("%s_%d", k.Name, k.Increment)
 }
 
 type QTable struct {
-	Name      string    `json:"name"`
-	Increment uint8     `json:"increment"`
-	Columns   []QColumn `json:"columns"`
-	Next      []QTable  `json:"next"`
-	Rule      Rule      `json:"rule"`
+	QTableKey
+	Next []QTable `json:"next"`
+	Rule Rule     `json:"rule"`
 }
 
 func (t *QTable) Join(b sq.SelectBuilder) sq.SelectBuilder {
-	for _, nextT := range t.Next {
-		b = b.Columns(nextT.SqlColumns()...)
-		b = nextT.Rule.Join(b, *t, nextT)
-		b = nextT.Join(b)
+	for _, nextQt := range t.Next {
+		b = nextQt.Rule.Join(b, *t, nextQt)
+		b = nextQt.Join(b)
 	}
 	return b
 }
 
-func (t *QTable) SqlAlias() string {
-	if t.Increment == 0 {
-		return t.Name
-	}
-	return fmt.Sprintf("%s_%d", t.Name, t.Increment)
-}
-
-func (t *QTable) SqlColumns() []string {
-	columns := make([]string, 0)
-	for _, c := range t.Columns {
-		if len(c.Fun) != 0 {
-			columns = append(columns, fmt.Sprintf(`%s("%s"."%s") "%s %s.%s"`,
-				c.Fun, t.SqlAlias(), c.Name, c.Fun, t.SqlAlias(), c.Name))
-			continue
-		}
-		columns = append(columns, fmt.Sprintf(`"%s"."%s" "%s.%s"`,
-			t.SqlAlias(), c.Name, t.SqlAlias(), c.Name))
-	}
-	return columns
-}
-
 type QColumn struct {
-	Name     string `json:"name"`
-	Fun      string `json:"fun"`
-	Key      string `json:"key"`
-	KeyOrder uint8  `json:"keyOrder"`
+	TableKey QTableKey `json:"tableKey"`
+	Name     string    `json:"name"`
+	Fun      string    `json:"fun"`
+	Key      string    `json:"key"`
+	KeyOrder uint8     `json:"keyOrder"`
 }
 
 const (
@@ -250,14 +240,14 @@ type Rule struct {
 }
 
 func (r *Rule) Join(b sq.SelectBuilder, left, right QTable) sq.SelectBuilder {
-	sl := []string{fmt.Sprintf(`"%s" "%s" ON`, right.Name, right.SqlAlias())}
+	sl := []string{fmt.Sprintf(`"%s" "%s" ON`, right.Name, right.String())}
 
 	for i, cond := range r.Conditions {
 		if i != 0 {
 			sl = append(sl, "AND")
 		}
 		sl = append(sl, fmt.Sprintf(`"%s"."%s" %s "%s"."%s"`,
-			left.SqlAlias(), cond.Left, cond.Op, right.SqlAlias(), cond.Right,
+			left.String(), cond.Left, cond.Op, right.String(), cond.Right,
 		))
 	}
 
@@ -283,8 +273,8 @@ type Condition struct {
 
 func (db *Database) Parse(query Query) (sq.SelectBuilder, map[string][]string) {
 	b := db.Builder.
-		Select(query.Table.SqlColumns()...).
-		From(fmt.Sprintf(`"%s" "%s"`, query.Table.Name, query.Table.SqlAlias()))
+		Select().
+		From(fmt.Sprintf(`"%s" "%s"`, query.Table.Name, query.Table.String()))
 
 	b = query.Table.Join(b)
 
@@ -294,27 +284,21 @@ func (db *Database) Parse(query Query) (sq.SelectBuilder, map[string][]string) {
 		rules   = make(map[string][]string)
 	)
 
-	tables := []QTable{query.Table}
+	for _, qc := range query.Columns {
+		var fullName, alias string
 
-	for i := 0; i < len(tables); i++ {
-		t := tables[i]
-		for _, c := range t.Columns {
-			if len(c.Fun) != 0 {
-				rules[c.Key] = append(rules[c.Key], fmt.Sprintf("%s %s.%s",
-					c.Fun, t.SqlAlias(), c.Name))
-				hasFun = true
-				continue
-			}
-
-			groupBy = append(groupBy, fmt.Sprintf(`"%s.%s"`, t.SqlAlias(), c.Name))
-
-			rules[c.Key] = append(rules[c.Key], fmt.Sprintf("%s.%s",
-				t.SqlAlias(), c.Name))
+		if len(qc.Fun) != 0 {
+			fullName = fmt.Sprintf(`%s("%s"."%s")`, qc.Fun, qc.TableKey.String(), qc.Name)
+			alias = fmt.Sprintf(`%s %s.%s`, qc.Fun, qc.TableKey.String(), qc.Name)
+			hasFun = true
+		} else {
+			fullName = fmt.Sprintf(`"%s"."%s"`, qc.TableKey.String(), qc.Name)
+			alias = fmt.Sprintf("%s.%s", qc.TableKey.String(), qc.Name)
+			groupBy = append(groupBy, fmt.Sprintf(`"%s"`, alias))
 		}
 
-		if len(t.Next) != 0 {
-			tables = append(tables, t.Next...)
-		}
+		rules[qc.Key] = append(rules[qc.Key], alias)
+		b = b.Columns(fmt.Sprintf(`%s "%s"`, fullName, alias))
 	}
 
 	if hasFun {

@@ -238,18 +238,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "tableKey": {
+                    "$ref": "#/definitions/database.QTableKey"
                 }
             }
         },
         "database.QTable": {
             "type": "object",
             "properties": {
-                "columns": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/database.QColumn"
-                    }
-                },
                 "increment": {
                     "type": "integer"
                 },
@@ -264,6 +261,17 @@ const docTemplate = `{
                 },
                 "rule": {
                     "$ref": "#/definitions/database.Rule"
+                }
+            }
+        },
+        "database.QTableKey": {
+            "type": "object",
+            "properties": {
+                "increment": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -298,6 +306,12 @@ const docTemplate = `{
         "entity.Query": {
             "type": "object",
             "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QColumn"
+                    }
+                },
                 "sourceId": {
                     "type": "string"
                 },

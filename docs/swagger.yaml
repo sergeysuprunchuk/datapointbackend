@@ -25,13 +25,11 @@ definitions:
         type: integer
       name:
         type: string
+      tableKey:
+        $ref: '#/definitions/database.QTableKey'
     type: object
   database.QTable:
     properties:
-      columns:
-        items:
-          $ref: '#/definitions/database.QColumn'
-        type: array
       increment:
         type: integer
       name:
@@ -42,6 +40,13 @@ definitions:
         type: array
       rule:
         $ref: '#/definitions/database.Rule'
+    type: object
+  database.QTableKey:
+    properties:
+      increment:
+        type: integer
+      name:
+        type: string
     type: object
   database.Rule:
     properties:
@@ -63,6 +68,10 @@ definitions:
     type: object
   entity.Query:
     properties:
+      columns:
+        items:
+          $ref: '#/definitions/database.QColumn'
+        type: array
       sourceId:
         type: string
       table:
