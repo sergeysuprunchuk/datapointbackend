@@ -153,7 +153,7 @@ func (s *SourceService) IsConnected(id string) bool {
 	return true
 }
 
-func (s *SourceService) GetFunctions(id string) ([]string, error) {
+func (s *SourceService) GetFunctions(id string) (map[string][]string, error) {
 	db, err := s.GetDatabase(id)
 	if err != nil {
 		return nil, err

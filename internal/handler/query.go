@@ -3,7 +3,6 @@ package handler
 import (
 	"datapointbackend/internal/entity"
 	"datapointbackend/internal/service"
-	"datapointbackend/pkg/database"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -28,11 +27,5 @@ func (h *queryHandler) execute(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	var response database.QueryResponse
-
-	if response, err = h.qs.Execute(ctx.Context(), query); err != nil {
-		return err
-	}
-
-	return ctx.JSON(response)
+	return ctx.JSON(h.qs.Execute(ctx.Context(), query))
 }

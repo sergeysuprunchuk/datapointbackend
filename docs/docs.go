@@ -213,13 +213,14 @@ const docTemplate = `{
         "database.Condition": {
             "type": "object",
             "properties": {
-                "left": {
-                    "type": "string"
+                "columns": {
+                    "description": "предыдущий и текущий столбец таблицы.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QColumn"
+                    }
                 },
                 "operator": {
-                    "type": "string"
-                },
-                "right": {
                     "type": "string"
                 }
             }
@@ -227,20 +228,30 @@ const docTemplate = `{
         "database.QColumn": {
             "type": "object",
             "properties": {
-                "fun": {
+                "func": {
+                    "description": "используется только в select.",
                     "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                },
-                "keyOrder": {
-                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
                 },
+                "payload": {
+                    "description": "специальные данные, привязанные к этому столбцу.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
                 "tableKey": {
-                    "$ref": "#/definitions/database.QTableKey"
+                    "description": "ключ таблицы, которой принадлежит столбец.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/database.QTableKey"
+                        }
+                    ]
+                },
+                "value": {
+                    "description": "используется в insert, update, delete и where.",
+                    "type": "array",
+                    "items": {}
                 }
             }
         },
@@ -248,19 +259,27 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "increment": {
+                    "description": "приращение имени для создания уникальных псевдонимов.",
                     "type": "integer"
                 },
                 "name": {
+                    "description": "имя таблицы.",
                     "type": "string"
                 },
                 "next": {
+                    "description": "используется только в select.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/database.QTable"
                     }
                 },
                 "rule": {
-                    "$ref": "#/definitions/database.Rule"
+                    "description": "правило объединения с предыдущей таблицей.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/database.Rule"
+                        }
+                    ]
                 }
             }
         },
@@ -268,9 +287,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "increment": {
+                    "description": "приращение имени для создания уникальных псевдонимов.",
                     "type": "integer"
                 },
                 "name": {
+                    "description": "имя таблицы.",
                     "type": "string"
                 }
             }
@@ -312,11 +333,33 @@ const docTemplate = `{
                         "$ref": "#/definitions/database.QColumn"
                     }
                 },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "orderBy": {
+                    "description": "используется только в select.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QColumn"
+                    }
+                },
                 "sourceId": {
                     "type": "string"
                 },
                 "table": {
                     "$ref": "#/definitions/database.QTable"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "where": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/database.QColumn"
+                    }
                 }
             }
         },

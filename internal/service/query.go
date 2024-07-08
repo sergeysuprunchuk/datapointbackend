@@ -14,17 +14,11 @@ func NewQueryService(ss *SourceService) *QueryService {
 	return &QueryService{ss: ss}
 }
 
-func (s *QueryService) Execute(ctx context.Context, query entity.Query) (database.QueryResponse, error) {
+func (s *QueryService) Execute(ctx context.Context, query entity.Query) database.QResponse {
 	db, err := s.ss.GetDatabase(query.SourceId)
 	if err != nil {
-		return database.QueryResponse{}, err
+		return database.QResponse{}.Errorf(err.Error())
 	}
 
-	var response database.QueryResponse
-
-	if response, err = db.Execute(ctx, query.Query); err != nil {
-		return database.QueryResponse{}, err
-	}
-
-	return response, nil
+	return db.Execute(ctx, query.Query)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
+	"strconv"
 	"strings"
 )
 
@@ -79,10 +80,12 @@ const (
 	MinSql   = "min"
 )
 
-func (db *Database) GetFunctions() ([]string, error) {
+func (db *Database) GetFunctions() (map[string][]string, error) {
 	switch db.Config.Driver {
 	case PostgreSQL:
-		return []string{AvgSql, CountSql, SumSql, MaxSql, MinSql}, nil
+		return map[string][]string{
+			NumberJSON: {AvgSql, CountSql, SumSql, MaxSql, MinSql},
+		}, nil
 	default:
 		return nil, fmt.Errorf("неизвестный драйвер %s", db.Config.Driver)
 	}
@@ -139,8 +142,10 @@ const (
 )
 
 type Column struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required"`
+	//IsPKey   bool   `json:"isPKey"`
 }
 
 type Table struct {
@@ -150,9 +155,15 @@ type Table struct {
 
 func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	rows, err := db.Builder.
-		Select("table_name", "column_name", "data_type").
+		Select(
+			"table_name",
+			"column_name",
+			"data_type",
+			"NOT (is_nullable::boolean OR column_default IS NOT NULL)",
+		).
 		From("information_schema.columns").
 		Where("table_schema = ?", "public").
+		OrderBy("table_name", "column_name").
 		QueryContext(ctx)
 	if err != nil {
 		return nil, err
@@ -166,10 +177,10 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	for rows.Next() {
 		var (
 			tName string
-			cName string
+			c     Column
 			cType SQLType
 		)
-		if err = rows.Scan(&tName, &cName, &cType); err != nil {
+		if err = rows.Scan(&tName, &c.Name, &cType, &c.Required); err != nil {
 			return nil, err
 		}
 
@@ -180,26 +191,39 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 			tableAcc[tName] = newT
 		}
 
-		tableAcc[tName].Columns = append(tableAcc[tName].Columns, Column{
-			Name: cName,
-			Type: cType.ToJSON(),
-		})
+		c.Type = cType.ToJSON()
+
+		tableAcc[tName].Columns = append(tableAcc[tName].Columns, c)
 	}
 
 	return tables, nil
 }
 
+const (
+	Select = "select"
+	Insert = "insert"
+	Update = "update"
+	Delete = "delete"
+)
+
 type Query struct {
-	Table   QTable    `json:"table"`
-	Columns []QColumn `json:"columns"`
+	Type    string     `json:"type"`
+	Table   *QTable    `json:"table"`
+	Columns []*QColumn `json:"columns"`
+	Where   []*QColumn `json:"where"`
+
+	//используется только в select.
+	OrderBy []*QColumn `json:"orderBy"`
+	Limit   uint64     `json:"limit"`
+	Offset  uint64     `json:"offset"`
 }
 
 type QTableKey struct {
-	Name      string `json:"name"`
-	Increment uint8  `json:"increment"`
+	Name      string `json:"name"`      //имя таблицы.
+	Increment uint8  `json:"increment"` //приращение имени для создания уникальных псевдонимов.
 }
 
-func (k *QTableKey) String() string {
+func (k QTableKey) String() string {
 	if k.Increment == 0 {
 		return k.Name
 	}
@@ -208,24 +232,102 @@ func (k *QTableKey) String() string {
 
 type QTable struct {
 	QTableKey
-	Next []QTable `json:"next"`
-	Rule Rule     `json:"rule"`
+
+	//используется только в select.
+	Next []*QTable `json:"next"` //таблицы, которые объединены с этой таблицей.
+	Rule *Rule     `json:"rule"` //правило объединения с предыдущей таблицей.
 }
 
-func (t *QTable) Join(b sq.SelectBuilder) sq.SelectBuilder {
-	for _, nextQt := range t.Next {
-		b = nextQt.Rule.Join(b, *t, nextQt)
-		b = nextQt.Join(b)
-	}
-	return b
+func (t QTable) Partial() string {
+	return fmt.Sprintf(`"%s"`, t.Name)
 }
+
+func (t QTable) Full() string {
+	return fmt.Sprintf(`%s "%s"`, t.Partial(), t.String())
+}
+
+func (t QTable) Join(b sq.SelectBuilder) (sq.SelectBuilder, error) {
+	for _, nextQt := range t.Next {
+		join := []string{nextQt.Full(), "ON"}
+
+		if nextQt.Rule == nil {
+			//возможно, объект в этот момент уже был изменен, но это не важно.
+			return b, fmt.Errorf("невозможно объединить таблицы, поскольку не указаны правила")
+		}
+
+		for i, c := range nextQt.Rule.Conditions {
+			if i != 0 {
+				join = append(join, "AND")
+			}
+
+			join = append(join, c.Columns[0].Partial(), c.Operator, c.Columns[1].Partial())
+		}
+
+		switch nextQt.Rule.Type {
+		case Join:
+			b = b.Join(strings.Join(join, " "))
+		case Left:
+			b = b.LeftJoin(strings.Join(join, " "))
+		case Right:
+			b = b.RightJoin(strings.Join(join, " "))
+		default:
+			return b, fmt.Errorf("неизвестный тип соединения: %s", nextQt.Rule.Type)
+		}
+
+		var err error
+
+		if b, err = nextQt.Join(b); err != nil {
+			return b, err
+		}
+	}
+
+	return b, nil
+}
+
+// специальные ключи к QColumn Payload для создания правил разбора.
+const (
+	MetaKey = "metaKey"
+	_       = "metaKeyOrder"
+)
 
 type QColumn struct {
-	TableKey QTableKey `json:"tableKey"`
+	TableKey QTableKey `json:"tableKey"` //ключ таблицы, которой принадлежит столбец.
 	Name     string    `json:"name"`
-	Fun      string    `json:"fun"`
-	Key      string    `json:"key"`
-	KeyOrder uint8     `json:"keyOrder"`
+
+	Payload map[string]any `json:"payload"` //специальные данные, привязанные к этому столбцу.
+
+	//используется только в select.
+	Func string `json:"func"`
+
+	//используется в insert, update, delete и where.
+	Value any `json:"value"`
+}
+
+func (c QColumn) MetaKey() string {
+	key, ok := c.Payload[MetaKey].(string)
+	if !ok {
+		return ""
+	}
+	return key
+}
+
+func (c QColumn) String() string {
+	result := fmt.Sprintf("%s.%s", c.TableKey.String(), c.Name)
+	if len(c.Func) == 0 {
+		return result
+	}
+	return fmt.Sprintf("%s %s", c.Func, result)
+}
+
+func (c QColumn) Partial() string {
+	if len(c.Func) != 0 {
+		return fmt.Sprintf(`%s("%s"."%s")`, c.Func, c.TableKey.String(), c.Name)
+	}
+	return fmt.Sprintf(`"%s"."%s"`, c.TableKey.String(), c.Name)
+}
+
+func (c QColumn) Full() string {
+	return fmt.Sprintf(`%s "%s"`, c.Partial(), c.String())
 }
 
 const (
@@ -235,107 +337,74 @@ const (
 )
 
 type Rule struct {
-	Type       string      `json:"type"`
-	Conditions []Condition `json:"conditions"`
-}
-
-func (r *Rule) Join(b sq.SelectBuilder, left, right QTable) sq.SelectBuilder {
-	sl := []string{fmt.Sprintf(`"%s" "%s" ON`, right.Name, right.String())}
-
-	for i, cond := range r.Conditions {
-		if i != 0 {
-			sl = append(sl, "AND")
-		}
-		sl = append(sl, fmt.Sprintf(`"%s"."%s" %s "%s"."%s"`,
-			left.String(), cond.Left, cond.Op, right.String(), cond.Right,
-		))
-	}
-
-	join := strings.Join(sl, " ")
-
-	switch r.Type {
-	case Join:
-		b = b.Join(join)
-	case Left:
-		b = b.LeftJoin(join)
-	case Right:
-		b = b.RightJoin(join)
-	}
-
-	return b
+	Type       string       `json:"type"`
+	Conditions []*Condition `json:"conditions"`
 }
 
 type Condition struct {
-	Left  string `json:"left"`
-	Right string `json:"right"`
-	Op    string `json:"operator"`
+	Columns  [2]*QColumn `json:"columns"` //предыдущий и текущий столбец таблицы.
+	Operator string      `json:"operator"`
 }
 
-func (db *Database) Parse(query Query) (sq.SelectBuilder, map[string][]string) {
-	b := db.Builder.
-		Select().
-		From(fmt.Sprintf(`"%s" "%s"`, query.Table.Name, query.Table.String()))
+type QResponse struct {
+	Data   any    `json:"data"`
+	Err    string `json:"err"`
+	RawSql string `json:"rawSql"`
+}
 
-	b = query.Table.Join(b)
+func (r QResponse) Errorf(format string, a ...any) QResponse {
+	r.Err = fmt.Sprintf(format, a...)
+	return r
+}
 
-	var (
-		groupBy []string
-		hasFun  bool
-		rules   = make(map[string][]string)
-	)
+func (r QResponse) errExecute(err error) QResponse {
+	return r.Errorf("не удалось исполнить запрос: %s", err.Error())
+}
 
-	for _, qc := range query.Columns {
-		var fullName, alias string
+func (r QResponse) errParse(err error) QResponse {
+	return r.Errorf("не удалось разобрать запрос: %s", err.Error())
+}
 
-		if len(qc.Fun) != 0 {
-			fullName = fmt.Sprintf(`%s("%s"."%s")`, qc.Fun, qc.TableKey.String(), qc.Name)
-			alias = fmt.Sprintf(`%s %s.%s`, qc.Fun, qc.TableKey.String(), qc.Name)
-			hasFun = true
-		} else {
-			fullName = fmt.Sprintf(`"%s"."%s"`, qc.TableKey.String(), qc.Name)
-			alias = fmt.Sprintf("%s.%s", qc.TableKey.String(), qc.Name)
-			groupBy = append(groupBy, fmt.Sprintf(`"%s"`, alias))
-		}
+func (db *Database) Execute(ctx context.Context, query Query) QResponse {
+	switch query.Type {
+	case Select:
+		return db.executeSelect(ctx, query)
+	case Insert:
+		return db.executeInsert(ctx, query)
+	case Update:
+		return db.executeUpdate(ctx, query)
+	case Delete:
+		return db.executeDelete(ctx, query)
 
-		rules[qc.Key] = append(rules[qc.Key], alias)
-		b = b.Columns(fmt.Sprintf(`%s "%s"`, fullName, alias))
+	default:
+		return QResponse{}.Errorf("неизвестный тип команды %s", query.Type)
 	}
-
-	if hasFun {
-		b = b.GroupBy(groupBy...)
-	}
-
-	return b, rules
 }
 
-type QueryResponse struct {
-	Rules  map[string][]string `json:"rules"`
-	Data   []map[string]any    `json:"data"`
-	RawSql string              `json:"rawSql"`
-}
-
-func (db *Database) Execute(ctx context.Context, query Query) (QueryResponse, error) {
-	b, rules := db.Parse(query)
-
-	rows, err := b.QueryContext(ctx)
+func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
+	b, rules, err := db.parseSelect(query)
 	if err != nil {
-		return QueryResponse{}, err
+		return QResponse{}.errParse(err)
+	}
+
+	var rows *sql.Rows
+
+	if rows, err = b.QueryContext(ctx); err != nil {
+		return QResponse{}.errExecute(err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var columns []string
+	var (
+		data    []map[string]any
+		columns []string
+	)
 
 	if columns, err = rows.Columns(); err != nil {
-		return QueryResponse{}, err
+		return QResponse{}.errExecute(err)
 	}
 
-	response := QueryResponse{Rules: rules}
-
 	for rows.Next() {
-		var (
-			dest = make([]any, 0)
-			item = make(map[string]any)
-		)
+		dest, item := make([]any, 0), make(map[string]any)
 
 		for _, c := range columns {
 			item[c] = new(any)
@@ -343,13 +412,161 @@ func (db *Database) Execute(ctx context.Context, query Query) (QueryResponse, er
 		}
 
 		if err = rows.Scan(dest...); err != nil {
-			return QueryResponse{}, err
+			return QResponse{}.errExecute(err)
 		}
 
-		response.Data = append(response.Data, item)
+		data = append(data, item)
 	}
 
-	response.RawSql, _, _ = b.ToSql()
+	rawSql, _ := b.MustSql()
 
-	return response, nil
+	return QResponse{
+		Data: struct {
+			Rules map[string][]string `json:"rules"`
+			Data  []map[string]any    `json:"data"`
+		}{
+			Rules: rules,
+			Data:  data,
+		},
+		RawSql: rawSql,
+	}
+}
+
+func (db *Database) parseSelect(query Query) (sq.SelectBuilder, map[string][]string, error) {
+	b := db.Builder.
+		Select().
+		From(query.Table.Full())
+
+	var err error
+
+	if b, err = query.Table.Join(b); err != nil {
+		return b, nil, err
+	}
+
+	var (
+		hasFunc bool
+		groupBy = make([]string, 0)
+		rules   = make(map[string][]string)
+	)
+
+	for _, column := range query.Columns {
+		b = b.Columns(column.Full())
+
+		rules[column.MetaKey()] = append(rules[column.MetaKey()], column.String())
+
+		if len(column.Func) != 0 {
+			hasFunc = true
+			continue
+		}
+
+		groupBy = append(groupBy, column.Partial())
+	}
+
+	if hasFunc {
+		b = b.GroupBy(groupBy...)
+	}
+
+	for _, column := range query.OrderBy {
+		b = b.OrderBy(column.Partial())
+	}
+
+	for _, column := range query.Where {
+		if column.Value != nil {
+			b = b.Where(sq.Eq{column.Partial(): column.Value})
+		}
+	}
+
+	if query.Limit != 0 {
+		b = b.
+			Limit(query.Limit).
+			Offset(query.Offset)
+	}
+
+	return b, rules, nil
+}
+
+func (db *Database) executeInsert(ctx context.Context, query Query) QResponse {
+	b, err := db.parseInsert(query)
+	if err != nil {
+		return QResponse{}.errParse(err)
+	}
+
+	if _, err = b.ExecContext(ctx); err != nil {
+		return QResponse{}.errExecute(err)
+	}
+
+	rawSql, _ := b.MustSql()
+
+	return QResponse{RawSql: rawSql}
+}
+
+func (db *Database) parseInsert(query Query) (sq.InsertBuilder, error) {
+	b := db.Builder.Insert(query.Table.Partial())
+
+	var values []any
+
+	for _, column := range query.Columns {
+		b = b.Columns(strconv.Quote(column.Name))
+		values = append(values, column.Value)
+	}
+
+	return b.Values(values...), nil
+}
+
+func (db *Database) executeUpdate(ctx context.Context, query Query) QResponse {
+	b, err := db.parseUpdate(query)
+	if err != nil {
+		return QResponse{}.errParse(err)
+	}
+
+	if _, err = b.ExecContext(ctx); err != nil {
+		return QResponse{}.errExecute(err)
+	}
+
+	rawSql, _ := b.MustSql()
+
+	return QResponse{RawSql: rawSql}
+}
+
+func (db Database) parseUpdate(query Query) (sq.UpdateBuilder, error) {
+	b := db.Builder.Update(query.Table.Partial())
+
+	for _, column := range query.Columns {
+		b = b.Set(strconv.Quote(column.Name), column.Value)
+	}
+
+	for _, column := range query.Where {
+		if column.Value != nil {
+			b = b.Where(sq.Eq{strconv.Quote(column.Name): column.Value})
+		}
+	}
+
+	return b, nil
+}
+
+func (db *Database) executeDelete(ctx context.Context, query Query) QResponse {
+	b, err := db.parseDelete(query)
+	if err != nil {
+		return QResponse{}.errParse(err)
+	}
+
+	if _, err = b.ExecContext(ctx); err != nil {
+		return QResponse{}.errExecute(err)
+	}
+
+	rawSql, _ := b.MustSql()
+
+	return QResponse{RawSql: rawSql}
+}
+
+func (db *Database) parseDelete(query Query) (sq.DeleteBuilder, error) {
+	b := db.Builder.Delete(query.Table.Partial())
+
+	for _, column := range query.Where {
+		if column.Value != nil {
+			b = b.Where(sq.Eq{strconv.Quote(column.Name): column.Value})
+		}
+	}
+
+	return b, nil
 }

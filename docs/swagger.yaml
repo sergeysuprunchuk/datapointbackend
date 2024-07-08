@@ -8,44 +8,59 @@ definitions:
     type: object
   database.Condition:
     properties:
-      left:
-        type: string
+      columns:
+        description: предыдущий и текущий столбец таблицы.
+        items:
+          $ref: '#/definitions/database.QColumn'
+        type: array
       operator:
-        type: string
-      right:
         type: string
     type: object
   database.QColumn:
     properties:
-      fun:
+      func:
+        description: используется только в select.
         type: string
-      key:
-        type: string
-      keyOrder:
-        type: integer
       name:
         type: string
+      payload:
+        additionalProperties: {}
+        description: специальные данные, привязанные к этому столбцу.
+        type: object
       tableKey:
-        $ref: '#/definitions/database.QTableKey'
+        allOf:
+        - $ref: '#/definitions/database.QTableKey'
+        description: ключ таблицы, которой принадлежит столбец.
+      value:
+        description: используется в insert, update, delete и where.
+        items: {}
+        type: array
     type: object
   database.QTable:
     properties:
       increment:
+        description: приращение имени для создания уникальных псевдонимов.
         type: integer
       name:
+        description: имя таблицы.
         type: string
       next:
+        description: используется только в select.
         items:
           $ref: '#/definitions/database.QTable'
         type: array
       rule:
-        $ref: '#/definitions/database.Rule'
+        allOf:
+        - $ref: '#/definitions/database.Rule'
+        description: правило объединения с предыдущей таблицей.
     type: object
   database.QTableKey:
     properties:
       increment:
+        description: приращение имени для создания уникальных псевдонимов.
         type: integer
       name:
+        description: имя таблицы.
         type: string
     type: object
   database.Rule:
@@ -72,10 +87,25 @@ definitions:
         items:
           $ref: '#/definitions/database.QColumn'
         type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      orderBy:
+        description: используется только в select.
+        items:
+          $ref: '#/definitions/database.QColumn'
+        type: array
       sourceId:
         type: string
       table:
         $ref: '#/definitions/database.QTable'
+      type:
+        type: string
+      where:
+        items:
+          $ref: '#/definitions/database.QColumn'
+        type: array
     type: object
   entity.Source:
     properties:
