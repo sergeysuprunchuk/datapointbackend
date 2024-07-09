@@ -146,17 +146,7 @@
                         "required": true
                     }
                 ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
+                "responses": {}
             }
         },
         "/sources/{id}/tables": {
@@ -191,8 +181,14 @@
         "database.Column": {
             "type": "object",
             "properties": {
+                "isPKey": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
                 },
                 "type": {
                     "type": "string"
@@ -238,9 +234,7 @@
                     ]
                 },
                 "value": {
-                    "description": "используется в insert, update, delete и where.",
-                    "type": "array",
-                    "items": {}
+                    "description": "используется в insert, update, delete и where."
                 }
             }
         },

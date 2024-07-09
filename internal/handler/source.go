@@ -114,10 +114,9 @@ func (h *sourceHandler) getTables(ctx *fiber.Ctx) error {
 	return ctx.JSON(tables)
 }
 
-// @tags		источники
-// @param		id	path	string	true	"идентификатор источника"
-// @success	200	{array}	string
-// @router		/sources/{id}/functions [get]
+// @tags	источники
+// @param	id	path	string	true	"идентификатор источника"
+// @router	/sources/{id}/functions [get]
 func (h *sourceHandler) getFunctions(ctx *fiber.Ctx) error {
 	functions, err := h.ss.GetFunctions(ctx.Params("id"))
 	if err != nil {

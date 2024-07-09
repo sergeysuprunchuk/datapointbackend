@@ -157,17 +157,7 @@ const docTemplate = `{
                         "required": true
                     }
                 ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
+                "responses": {}
             }
         },
         "/sources/{id}/tables": {
@@ -202,8 +192,14 @@ const docTemplate = `{
         "database.Column": {
             "type": "object",
             "properties": {
+                "isPKey": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
                 },
                 "type": {
                     "type": "string"
@@ -249,9 +245,7 @@ const docTemplate = `{
                     ]
                 },
                 "value": {
-                    "description": "используется в insert, update, delete и where.",
-                    "type": "array",
-                    "items": {}
+                    "description": "используется в insert, update, delete и where."
                 }
             }
         },

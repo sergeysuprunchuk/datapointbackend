@@ -1,8 +1,12 @@
 definitions:
   database.Column:
     properties:
+      isPKey:
+        type: boolean
       name:
         type: string
+      required:
+        type: boolean
       type:
         type: string
     type: object
@@ -33,8 +37,6 @@ definitions:
         description: ключ таблицы, которой принадлежит столбец.
       value:
         description: используется в insert, update, delete и where.
-        items: {}
-        type: array
     type: object
   database.QTable:
     properties:
@@ -209,13 +211,7 @@ paths:
         name: id
         required: true
         type: string
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              type: string
-            type: array
+      responses: {}
       tags:
       - источники
   /sources/{id}/tables:

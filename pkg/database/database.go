@@ -145,7 +145,7 @@ type Column struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	Required bool   `json:"required"`
-	//IsPKey   bool   `json:"isPKey"`
+	IsPKey   bool   `json:"isPKey"`
 }
 
 type Table struct {
@@ -156,14 +156,17 @@ type Table struct {
 func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	rows, err := db.Builder.
 		Select(
-			"table_name",
-			"column_name",
-			"data_type",
-			"NOT (is_nullable::boolean OR column_default IS NOT NULL)",
+			"c.table_name",
+			"c.column_name",
+			"c.data_type",
+			"NOT (c.is_nullable::boolean OR c.column_default IS NOT NULL)",          //required
+			"tc.constraint_type IS NOT NULL AND tc.constraint_type = 'PRIMARY KEY'", //is_pkey
 		).
-		From("information_schema.columns").
-		Where("table_schema = ?", "public").
-		OrderBy("table_name", "column_name").
+		From("information_schema.columns c").
+		LeftJoin("information_schema.constraint_column_usage ccu USING (table_name, column_name)").
+		LeftJoin("information_schema.table_constraints tc USING (constraint_name)").
+		Where("c.table_schema = 'public' AND (tc.constraint_type = 'PRIMARY KEY' OR tc.constraint_type IS NULL)").
+		OrderBy("c.table_name", "c.column_name").
 		QueryContext(ctx)
 	if err != nil {
 		return nil, err
@@ -180,7 +183,7 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 			c     Column
 			cType SQLType
 		)
-		if err = rows.Scan(&tName, &c.Name, &cType, &c.Required); err != nil {
+		if err = rows.Scan(&tName, &c.Name, &cType, &c.Required, &c.IsPKey); err != nil {
 			return nil, err
 		}
 
@@ -223,7 +226,7 @@ type QTableKey struct {
 	Increment uint8  `json:"increment"` //приращение имени для создания уникальных псевдонимов.
 }
 
-func (k QTableKey) String() string {
+func (k *QTableKey) String() string {
 	if k.Increment == 0 {
 		return k.Name
 	}
@@ -238,15 +241,15 @@ type QTable struct {
 	Rule *Rule     `json:"rule"` //правило объединения с предыдущей таблицей.
 }
 
-func (t QTable) Partial() string {
+func (t *QTable) Partial() string {
 	return fmt.Sprintf(`"%s"`, t.Name)
 }
 
-func (t QTable) Full() string {
+func (t *QTable) Full() string {
 	return fmt.Sprintf(`%s "%s"`, t.Partial(), t.String())
 }
 
-func (t QTable) Join(b sq.SelectBuilder) (sq.SelectBuilder, error) {
+func (t *QTable) Join(b sq.SelectBuilder) (sq.SelectBuilder, error) {
 	for _, nextQt := range t.Next {
 		join := []string{nextQt.Full(), "ON"}
 
@@ -303,7 +306,7 @@ type QColumn struct {
 	Value any `json:"value"`
 }
 
-func (c QColumn) MetaKey() string {
+func (c *QColumn) MetaKey() string {
 	key, ok := c.Payload[MetaKey].(string)
 	if !ok {
 		return ""
@@ -311,7 +314,7 @@ func (c QColumn) MetaKey() string {
 	return key
 }
 
-func (c QColumn) String() string {
+func (c *QColumn) String() string {
 	result := fmt.Sprintf("%s.%s", c.TableKey.String(), c.Name)
 	if len(c.Func) == 0 {
 		return result
@@ -319,14 +322,14 @@ func (c QColumn) String() string {
 	return fmt.Sprintf("%s %s", c.Func, result)
 }
 
-func (c QColumn) Partial() string {
+func (c *QColumn) Partial() string {
 	if len(c.Func) != 0 {
 		return fmt.Sprintf(`%s("%s"."%s")`, c.Func, c.TableKey.String(), c.Name)
 	}
 	return fmt.Sprintf(`"%s"."%s"`, c.TableKey.String(), c.Name)
 }
 
-func (c QColumn) Full() string {
+func (c *QColumn) Full() string {
 	return fmt.Sprintf(`%s "%s"`, c.Partial(), c.String())
 }
 
@@ -528,7 +531,7 @@ func (db *Database) executeUpdate(ctx context.Context, query Query) QResponse {
 	return QResponse{RawSql: rawSql}
 }
 
-func (db Database) parseUpdate(query Query) (sq.UpdateBuilder, error) {
+func (db *Database) parseUpdate(query Query) (sq.UpdateBuilder, error) {
 	b := db.Builder.Update(query.Table.Partial())
 
 	for _, column := range query.Columns {
