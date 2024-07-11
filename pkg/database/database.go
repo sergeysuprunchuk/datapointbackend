@@ -384,11 +384,15 @@ func (db *Database) Execute(ctx context.Context, query Query) QResponse {
 	}
 }
 
+const specialPrefix = "$"
+
 func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 	b, rules, err := db.parseSelect(query)
 	if err != nil {
 		return QResponse{}.errParse(err)
 	}
+
+	b = b.Columns(fmt.Sprintf(`COUNT(*) OVER() "%stotal"`, specialPrefix))
 
 	var rows *sql.Rows
 
@@ -400,6 +404,7 @@ func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 	var (
 		data    []map[string]any
 		columns []string
+		total   uint64
 	)
 
 	if columns, err = rows.Columns(); err != nil {
@@ -410,11 +415,13 @@ func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 		dest, item := make([]any, 0), make(map[string]any)
 
 		for _, c := range columns {
-			item[c] = new(any)
-			dest = append(dest, item[c])
+			if !strings.HasPrefix(c, specialPrefix) {
+				item[c] = new(any)
+				dest = append(dest, item[c])
+			}
 		}
 
-		if err = rows.Scan(dest...); err != nil {
+		if err = rows.Scan(append(dest, &total)...); err != nil {
 			return QResponse{}.errExecute(err)
 		}
 
@@ -427,9 +434,11 @@ func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 		Data: struct {
 			Rules map[string][]string `json:"rules"`
 			Data  []map[string]any    `json:"data"`
+			Total uint64              `json:"total"`
 		}{
 			Rules: rules,
 			Data:  data,
+			Total: total,
 		},
 		RawSql: rawSql,
 	}
