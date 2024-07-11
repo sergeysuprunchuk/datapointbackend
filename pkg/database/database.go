@@ -290,7 +290,7 @@ func (t *QTable) Join(b sq.SelectBuilder) (sq.SelectBuilder, error) {
 // специальные ключи к QColumn Payload для создания правил разбора.
 const (
 	MetaKey = "metaKey"
-	_       = "metaKeyOrder"
+	Order   = "order"
 )
 
 type QColumn struct {
@@ -479,7 +479,12 @@ func (db *Database) parseSelect(query Query) (sq.SelectBuilder, map[string][]str
 	}
 
 	for _, column := range query.OrderBy {
-		b = b.OrderBy(column.Partial())
+		order, ok := column.Payload[Order]
+		if !ok || (order != "ASC" && order != "DESC") {
+			order = "ASC"
+		}
+
+		b = b.OrderBy(fmt.Sprintf("%s %s", column.Partial(), order))
 	}
 
 	for _, column := range query.Where {
