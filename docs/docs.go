@@ -186,6 +186,80 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/widgets": {
+            "get": {
+                "tags": [
+                    "виджеты"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.Widget"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "виджеты"
+                ],
+                "parameters": [
+                    {
+                        "description": "виджет",
+                        "name": "widget",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.Widget"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/widgets/{id}": {
+            "get": {
+                "tags": [
+                    "виджеты"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор виджета",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Widget"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "виджеты"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "идентификатор виджета",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
         }
     },
     "definitions": {
@@ -385,6 +459,39 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "entity.Widget": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.Widget"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "props": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "query": {
+                    "description": "чтобы ускорить разработку пока так, а дальше посмотрим :/.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "type": {
                     "type": "string"
                 }
             }

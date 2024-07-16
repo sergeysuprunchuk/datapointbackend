@@ -130,6 +130,28 @@ definitions:
       username:
         type: string
     type: object
+  entity.Widget:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/entity.Widget'
+        type: array
+      id:
+        type: string
+      name:
+        type: string
+      props:
+        items:
+          type: integer
+        type: array
+      query:
+        description: чтобы ускорить разработку пока так, а дальше посмотрим :/.
+        items:
+          type: integer
+        type: array
+      type:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -242,4 +264,51 @@ paths:
             type: array
       tags:
       - источники
+  /widgets:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.Widget'
+            type: array
+      tags:
+      - виджеты
+    post:
+      parameters:
+      - description: виджет
+        in: body
+        name: widget
+        required: true
+        schema:
+          $ref: '#/definitions/entity.Widget'
+      responses: {}
+      tags:
+      - виджеты
+  /widgets/{id}:
+    delete:
+      parameters:
+      - description: идентификатор виджета
+        in: path
+        name: id
+        required: true
+        type: string
+      responses: {}
+      tags:
+      - виджеты
+    get:
+      parameters:
+      - description: идентификатор виджета
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Widget'
+      tags:
+      - виджеты
 swagger: "2.0"

@@ -69,11 +69,7 @@ func (h *sourceHandler) edit(ctx *fiber.Ctx) error {
 // @param	id	path	string	true	"идентификатор источника"
 // @router	/sources/{id} [delete]
 func (h *sourceHandler) delete(ctx *fiber.Ctx) error {
-	err := h.ss.Delete(ctx.Context(), ctx.Params("id"))
-	if err != nil {
-		return err
-	}
-	return err
+	return h.ss.Delete(ctx.Context(), ctx.Params("id"))
 }
 
 // @tags	источники

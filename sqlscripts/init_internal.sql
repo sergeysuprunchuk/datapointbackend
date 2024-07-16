@@ -16,3 +16,12 @@ CREATE TABLE source (
                         database_name TEXT NOT NULL,
                         driver TEXT NOT NULL
 );
+
+CREATE TABLE widget (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        parent_id UUID REFERENCES widget (id) ON DELETE CASCADE,
+                        props JSONB,
+                        query JSONB
+);

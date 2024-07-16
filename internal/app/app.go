@@ -30,14 +30,16 @@ func Run(cfg *config.Config) error {
 
 	var (
 		sr = repository.NewSourceRepository(db)
+		wr = repository.NewWidgetRepository(db)
 	)
 
 	var (
 		ss = service.NewSourceService(sr)
 		qs = service.NewQueryService(ss)
+		ws = service.NewWidgetService(wr)
 	)
 
-	handler.NewRouter(app, ss, qs)
+	handler.NewRouter(app, ss, qs, ws)
 
 	return app.Listen(cfg.Http.Addr)
 }

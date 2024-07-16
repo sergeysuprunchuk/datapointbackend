@@ -7,8 +7,14 @@ import (
 	"github.com/gofiber/swagger"
 )
 
-func NewRouter(app *fiber.App, ss *service.SourceService, qs *service.QueryService) {
+func NewRouter(
+	app *fiber.App,
+	ss *service.SourceService,
+	qs *service.QueryService,
+	ws *service.WidgetService,
+) {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 	newSourceHandler(app, ss)
 	newQueryHandler(app, qs)
+	newWidgetHandler(app, ws)
 }
