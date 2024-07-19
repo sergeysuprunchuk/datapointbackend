@@ -153,6 +153,15 @@ type Table struct {
 	Columns []Column `json:"columns"`
 }
 
+func (t *Table) GetPKey() (Column, bool) {
+	for _, column := range t.Columns {
+		if column.IsPKey {
+			return column, true
+		}
+	}
+	return Column{}, false
+}
+
 func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	rows, err := db.Builder.
 		Select(
@@ -200,6 +209,21 @@ func (db *Database) GetTables(ctx context.Context) ([]*Table, error) {
 	}
 
 	return tables, nil
+}
+
+func (db *Database) GetTable(ctx context.Context, name string) (*Table, error) {
+	tables, err := db.GetTables(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, table := range tables {
+		if table.Name == name {
+			return table, nil
+		}
+	}
+
+	return nil, fmt.Errorf("таблицы с именем %s не существует", name)
 }
 
 const (
@@ -294,8 +318,9 @@ const (
 )
 
 type QColumn struct {
+	Column
+
 	TableKey QTableKey `json:"tableKey"` //ключ таблицы, которой принадлежит столбец.
-	Name     string    `json:"name"`
 
 	Payload map[string]any `json:"payload"` //специальные данные, привязанные к этому столбцу.
 
@@ -384,7 +409,11 @@ func (db *Database) Execute(ctx context.Context, query Query) QResponse {
 	}
 }
 
-const specialPrefix = "$"
+const (
+	specialPrefix     = "$"
+	specialRootPrefix = specialPrefix + specialPrefix
+	specialRootId     = specialPrefix + "root_id"
+)
 
 func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 	b, rules, err := db.parseSelect(query)
@@ -392,7 +421,7 @@ func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 		return QResponse{}.errParse(err)
 	}
 
-	b = b.Columns(fmt.Sprintf(`COUNT(*) OVER() "%stotal"`, specialPrefix))
+	b = b.Columns(fmt.Sprintf(`COUNT(*) OVER() "%stotal"`, specialRootPrefix))
 
 	var rows *sql.Rows
 
@@ -415,7 +444,7 @@ func (db *Database) executeSelect(ctx context.Context, query Query) QResponse {
 		dest, item := make([]any, 0), make(map[string]any)
 
 		for _, c := range columns {
-			if !strings.HasPrefix(c, specialPrefix) {
+			if !strings.HasPrefix(c, specialRootPrefix) {
 				item[c] = new(any)
 				dest = append(dest, item[c])
 			}
@@ -457,11 +486,16 @@ func (db *Database) parseSelect(query Query) (sq.SelectBuilder, map[string][]str
 
 	var (
 		hasFunc bool
+		pKey    *QColumn
 		groupBy = make([]string, 0)
 		rules   = make(map[string][]string)
 	)
 
 	for _, column := range query.Columns {
+		if column.IsPKey && query.Table.QTableKey == column.TableKey {
+			pKey = column
+		}
+
 		b = b.Columns(column.Full())
 
 		rules[column.MetaKey()] = append(rules[column.MetaKey()], column.String())
@@ -472,6 +506,24 @@ func (db *Database) parseSelect(query Query) (sq.SelectBuilder, map[string][]str
 		}
 
 		groupBy = append(groupBy, column.Partial())
+	}
+
+	if pKey == nil && !hasFunc {
+		var table *Table
+
+		if table, err = db.GetTable(context.Background(), query.Table.Name); err != nil {
+			return sq.SelectBuilder{}, nil, err
+		}
+
+		if newPKey, ok := table.GetPKey(); ok {
+			pKey = &QColumn{Column: newPKey, TableKey: query.Table.QTableKey}
+		}
+	}
+
+	if pKey != nil && !hasFunc {
+		b = b.Columns(fmt.Sprintf(
+			`%s "%s"`, pKey.Partial(), specialRootId,
+		))
 	}
 
 	if hasFunc {
