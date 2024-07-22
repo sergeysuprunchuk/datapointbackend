@@ -12,9 +12,11 @@ func NewRouter(
 	ss *service.SourceService,
 	qs *service.QueryService,
 	ws *service.WidgetService,
+	ds *service.DashboardService,
 ) {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 	newSourceHandler(app, ss)
 	newQueryHandler(app, qs)
 	newWidgetHandler(app, ws)
+	newDashboardHandler(app, ds)
 }

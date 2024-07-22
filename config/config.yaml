@@ -3,8 +3,8 @@ http:
 
 database:
   host: "localhost"
-  port: 5432
+  port: 4100
   username: "postgres"
-  password: "130263"
+  password: "4100"
   database_name: "datapoint"
   driver: "PostgreSQL"

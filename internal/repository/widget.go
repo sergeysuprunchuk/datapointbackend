@@ -18,7 +18,8 @@ func NewWidgetRepository(db *database.Database) *WidgetRepository {
 
 type extended struct {
 	*entity.Widget
-	ParentId *string
+	parentId    *string
+	dashboardId string
 }
 
 func (r *WidgetRepository) GetAll(ctx context.Context) ([]entity.Widget, error) {
@@ -41,7 +42,7 @@ func (r *WidgetRepository) GetAll(ctx context.Context) ([]entity.Widget, error) 
 	for rows.Next() {
 		e := extended{Widget: new(entity.Widget)}
 
-		if err = rows.Scan(&e.Id, &e.Name, &e.Type, &e.Props, &e.Query, &e.ParentId); err != nil {
+		if err = rows.Scan(&e.Id, &e.Name, &e.Type, &e.Props, &e.Query, &e.parentId); err != nil {
 			return nil, err
 		}
 
@@ -51,15 +52,15 @@ func (r *WidgetRepository) GetAll(ctx context.Context) ([]entity.Widget, error) 
 	}
 
 	for _, w := range widgets {
-		if w.ParentId != nil {
-			pointers[*w.ParentId].Children = append(pointers[*w.ParentId].Children, w.Widget)
+		if w.parentId != nil {
+			pointers[*w.parentId].Children = append(pointers[*w.parentId].Children, w.Widget)
 		}
 	}
 
 	var sl []entity.Widget
 
 	for _, w := range widgets {
-		if w.ParentId == nil {
+		if w.parentId == nil {
 			sl = append(sl, *w.Widget)
 		}
 	}
@@ -112,7 +113,7 @@ func (r *WidgetRepository) GetOne(ctx context.Context, id string) (entity.Widget
 	for rows.Next() {
 		e := extended{Widget: new(entity.Widget)}
 
-		if err = rows.Scan(&e.Id, &e.Name, &e.Type, &e.Props, &e.Query, &e.ParentId); err != nil {
+		if err = rows.Scan(&e.Id, &e.Name, &e.Type, &e.Props, &e.Query, &e.parentId); err != nil {
 			return entity.Widget{}, err
 		}
 
@@ -122,8 +123,8 @@ func (r *WidgetRepository) GetOne(ctx context.Context, id string) (entity.Widget
 	}
 
 	for _, w := range widgets {
-		if w.ParentId != nil {
-			pointers[*w.ParentId].Children = append(pointers[*w.ParentId].Children, w.Widget)
+		if w.parentId != nil {
+			pointers[*w.parentId].Children = append(pointers[*w.parentId].Children, w.Widget)
 		}
 	}
 
