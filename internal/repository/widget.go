@@ -6,6 +6,7 @@ import (
 	"datapointbackend/internal/entity"
 	"datapointbackend/pkg/database"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 )
 
 type WidgetRepository struct {
@@ -171,6 +172,53 @@ func (r *WidgetRepository) Create(ctx context.Context, w entity.Widget, parentId
 }
 
 func (r *WidgetRepository) Edit(ctx context.Context, w entity.Widget) error {
-	//TODO implement me
-	panic("implement me")
+	_, err := r.db.Builder.
+		Update("widget").
+		Set("name", w.Name).
+		Set("type", w.Type).
+		Set("props", w.Props).
+		Set("query", w.Query).
+		Where("id = ?", w.Id).
+		ExecContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	var ids []string
+
+	for _, child := range w.Children {
+		var id string
+		if len(child.Id) == 0 {
+			if id, err = r.Create(ctx, *child, &w.Id); err != nil {
+				return err
+			}
+
+			ids = append(ids, id)
+
+			continue
+		}
+
+		if err = r.Edit(ctx, *child); err != nil {
+			return err
+		}
+
+		ids = append(ids, child.Id)
+	}
+
+	if err = r.ClearChildren(ctx, ids, w.Id); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *WidgetRepository) ClearChildren(ctx context.Context, ignore []string, parentId string) error {
+	_, err := r.db.Builder.
+		Delete("widget").
+		Where(sq.And{
+			sq.NotEq{"id": ignore},
+			sq.Eq{"parent_id": parentId},
+		}).
+		ExecContext(ctx)
+	return err
 }

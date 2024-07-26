@@ -69,5 +69,16 @@ func (h *widgetHandler) create(ctx *fiber.Ctx) error {
 }
 
 func (h *widgetHandler) edit(ctx *fiber.Ctx) error {
+	var widget entity.Widget
+
+	err := ctx.BodyParser(&widget)
+	if err != nil {
+		return err
+	}
+
+	if err = h.ws.Edit(ctx.Context(), widget); err != nil {
+		return err
+	}
+
 	return nil
 }

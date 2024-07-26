@@ -11,7 +11,6 @@ type widgetRepository interface {
 	GetOne(ctx context.Context, id string) (entity.Widget, error)
 	Delete(ctx context.Context, id string) error
 	Create(ctx context.Context, w entity.Widget, parentId *string) (string, error)
-
 	Edit(ctx context.Context, w entity.Widget) error
 }
 
@@ -55,5 +54,9 @@ func (s *WidgetService) Create(ctx context.Context, w entity.Widget) (string, er
 }
 
 func (s *WidgetService) Edit(ctx context.Context, w entity.Widget) error {
+	if err := s.wr.Edit(ctx, w); err != nil {
+		return err
+	}
+
 	return nil
 }

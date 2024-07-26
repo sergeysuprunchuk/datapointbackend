@@ -11,6 +11,7 @@ type dashboardRepository interface {
 	GetOne(ctx context.Context, id string) (entity.Dashboard, error)
 	Delete(ctx context.Context, id string) error
 	Create(ctx context.Context, d entity.Dashboard) (string, error)
+	Edit(ctx context.Context, d entity.Dashboard) error
 }
 
 type DashboardService struct {
@@ -30,8 +31,11 @@ func (s *DashboardService) GetAll(ctx context.Context) ([]entity.Dashboard, erro
 }
 
 func (s *DashboardService) GetOne(ctx context.Context, id string) (entity.Dashboard, error) {
-	//TODO implement me
-	panic("implement me")
+	d, err := s.dr.GetOne(ctx, id)
+	if err != nil {
+		return entity.Dashboard{}, err
+	}
+	return d, nil
 }
 
 func (s *DashboardService) Delete(ctx context.Context, id string) error {
@@ -47,4 +51,11 @@ func (s *DashboardService) Create(ctx context.Context, d entity.Dashboard) (stri
 		return "", fmt.Errorf("не удалось сохранить дашборд: %s", err.Error())
 	}
 	return id, nil
+}
+
+func (s *DashboardService) Edit(ctx context.Context, d entity.Dashboard) error {
+	if err := s.dr.Edit(ctx, d); err != nil {
+		return err
+	}
+	return nil
 }

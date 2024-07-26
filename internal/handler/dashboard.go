@@ -16,6 +16,7 @@ func newDashboardHandler(app *fiber.App, ds *service.DashboardService) {
 	g.Get("/", h.getAll)
 	g.Get("/:id", h.getOne)
 	g.Post("/", h.create)
+	g.Patch("/", h.edit)
 	g.Delete("/:id", h.delete)
 }
 
@@ -28,10 +29,19 @@ func (h *dashboardHandler) getAll(ctx *fiber.Ctx) error {
 }
 
 func (h *dashboardHandler) getOne(ctx *fiber.Ctx) error {
-	return nil
+	d, err := h.ds.GetOne(ctx.Context(), ctx.Params("id"))
+	if err != nil {
+		return err
+	}
+
+	return ctx.JSON(d)
 }
 
 func (h *dashboardHandler) delete(ctx *fiber.Ctx) error {
+	if err := h.ds.Delete(ctx.Context(), ctx.Params("id")); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -48,4 +58,19 @@ func (h *dashboardHandler) create(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.SendString(dashboard.Id)
+}
+
+func (h *dashboardHandler) edit(ctx *fiber.Ctx) error {
+	var dashboard entity.Dashboard
+
+	err := ctx.BodyParser(&dashboard)
+	if err != nil {
+		return err
+	}
+
+	if err = h.ds.Edit(ctx.Context(), dashboard); err != nil {
+		return err
+	}
+
+	return nil
 }
